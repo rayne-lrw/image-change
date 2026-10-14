@@ -238,6 +238,9 @@
   const LIBS = {
     pica:    "https://cdn.jsdelivr.net/npm/pica@9.0.1/dist/pica.min.js",
     jszip:   "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
+    // heic-to 內含較新的 libheif，可解碼 iPhone 新機型的 HEIC；heic2any 為舊版備用
+    heicto:  ["https://cdn.jsdelivr.net/npm/heic-to@1.1.14/dist/iife/heic-to.js",
+              "https://unpkg.com/heic-to@1.1.14/dist/iife/heic-to.js"],
     heic2any:"https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js",
     pako:    "https://cdn.jsdelivr.net/npm/pako@1.0.11/dist/pako.min.js",
     utif:    "https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js",
@@ -256,12 +259,18 @@
 
   const loaded = {};
   function loadScript(key) {
-    return loaded[key] ||= new Promise((res, rej) => {
+    const urls = [].concat(LIBS[key]);
+    const tryLoad = (i) => new Promise((res, rej) => {
       const s = document.createElement("script");
-      s.src = LIBS[key]; s.onload = res;
-      s.onerror = () => { delete loaded[key]; rej(new Error("無法載入元件（需要網路連線）")); };
+      s.src = urls[i]; s.onload = res;
+      s.onerror = () => { s.remove(); rej(); };
       document.head.appendChild(s);
+    }).catch(() => {
+      if (i + 1 < urls.length) return tryLoad(i + 1);
+      delete loaded[key];
+      throw new Error("無法載入元件（需要網路連線）");
     });
+    return loaded[key] ||= tryLoad(0);
   }
 
   const store = {
@@ -423,10 +432,7 @@
   async function decode(it) {
     const kind = SPECIAL[it.ext];
     if (kind === "heic") {
-      await loadScript("heic2any");
-      let blob = await heic2any({ blob: it.file, toType: "image/png" });
-      if (Array.isArray(blob)) blob = blob[0];
-      return await createImageBitmap(blob);
+      return await decodeHeic(it.file);
     }
     if (kind === "tiff") {
       await loadScript("pako").catch(() => {});
@@ -454,6 +460,30 @@
       c.getContext("2d").drawImage(img, 0, 0, w, h);
       return c;
     }
+  }
+
+  // HEIC：先試瀏覽器內建解碼（Safari；副檔名是 .heic 但其實是 JPG 的檔案也適用），
+  // 再試 heic-to（新版 libheif），最後才用 heic2any
+  async function decodeHeic(file) {
+    try { return await createImageBitmap(file, { imageOrientation: "from-image" }); } catch {}
+    let lastErr;
+    try {
+      await loadScript("heicto");
+      const lib = window.HeicTo || {};
+      const heicTo = lib.heicTo || window.heicTo;
+      const blob = await heicTo({ blob: file, type: "image/png" });
+      return await createImageBitmap(blob, { imageOrientation: "from-image" });
+    } catch (e) { lastErr = e; console.warn("heic-to 解碼失敗", e); }
+    try {
+      await loadScript("heic2any");
+      let blob = await heic2any({ blob: file, toType: "image/png" });
+      if (Array.isArray(blob)) blob = blob[0];
+      return await createImageBitmap(blob);
+    } catch (e) { lastErr = e; console.warn("heic2any 解碼失敗", e); }
+    const msg = String(lastErr?.message || lastErr || "");
+    throw new Error(/libheif|not supported/i.test(msg)
+      ? "此 HEIC 編碼不支援，請改用 Safari 開啟本工具，或先轉成 JPG"
+      : msg || "HEIC 解碼失敗");
   }
 
   let picaInst = null, picaFailed = false;
