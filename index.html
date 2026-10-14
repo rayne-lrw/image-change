@@ -239,8 +239,8 @@
     pica:    "https://cdn.jsdelivr.net/npm/pica@9.0.1/dist/pica.min.js",
     jszip:   "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
     // heic-to 內含較新的 libheif，可解碼 iPhone 新機型的 HEIC；heic2any 為舊版備用
-    heicto:  ["https://cdn.jsdelivr.net/npm/heic-to@1.1.14/dist/iife/heic-to.js",
-              "https://unpkg.com/heic-to@1.1.14/dist/iife/heic-to.js"],
+    heicto:  ["https://cdn.jsdelivr.net/npm/heic-to@1.5.2/dist/iife/heic-to.js",
+              "https://unpkg.com/heic-to@1.5.2/dist/iife/heic-to.js"],
     heic2any:"https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js",
     pako:    "https://cdn.jsdelivr.net/npm/pako@1.0.11/dist/pako.min.js",
     utif:    "https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js",
@@ -469,10 +469,10 @@
     let lastErr;
     try {
       await loadScript("heicto");
-      const lib = window.HeicTo || {};
-      const heicTo = lib.heicTo || window.heicTo;
-      const blob = await heicTo({ blob: file, type: "image/png" });
-      return await createImageBitmap(blob, { imageOrientation: "from-image" });
+      // IIFE 版的全域 HeicTo 本身就是 heicTo 函式
+      const heicTo = typeof window.HeicTo === "function" ? window.HeicTo : window.HeicTo?.heicTo;
+      if (typeof heicTo !== "function") throw new Error("heic-to 載入異常");
+      return await heicTo({ blob: file, type: "bitmap" });
     } catch (e) { lastErr = e; console.warn("heic-to 解碼失敗", e); }
     try {
       await loadScript("heic2any");
