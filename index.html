@@ -1,0 +1,770 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>圖片縮放工具</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%234f8cff'/%3E%3Cstop offset='1' stop-color='%237c4dff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='2' y='2' width='60' height='60' rx='14' fill='url(%23g)'/%3E%3Crect x='12' y='16' width='36' height='31' rx='4' fill='%23fff'/%3E%3Crect x='15' y='19' width='30' height='25' rx='2' fill='%23bee1ff'/%3E%3Cpath d='M15 44l10-15 10 15z' fill='%233caa6e'/%3E%3Cpath d='M25 44l10-10 10 7v3z' fill='%23288758'/%3E%3Ccircle cx='38' cy='24' r='3.5' fill='%23ffc83c'/%3E%3Ccircle cx='48' cy='46' r='10' fill='%23ff8c32' stroke='%23fff' stroke-width='2'/%3E%3Cpath d='M43 51l10-10M53 41h-5M53 41v5M43 51h5M43 51v-5' stroke='%23fff' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f4f5f9;
+    --card: #ffffff;
+    --text: #1d2130;
+    --muted: #6b7280;
+    --border: #e2e5ee;
+    --accent: #5b63ff;
+    --accent-2: #7c4dff;
+    --accent-soft: #eef0ff;
+    --ok: #15803d;
+    --err: #dc2626;
+    --row-hover: #f8f9fc;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #131419;
+      --card: #1c1e26;
+      --text: #e8e9ef;
+      --muted: #9ba1ae;
+      --border: #2d303b;
+      --accent: #8089ff;
+      --accent-2: #9d7bff;
+      --accent-soft: #252848;
+      --ok: #4ade80;
+      --err: #f87171;
+      --row-hover: #22242d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #131419; --card: #1c1e26; --text: #e8e9ef; --muted: #9ba1ae; --border: #2d303b;
+    --accent: #8089ff; --accent-2: #9d7bff; --accent-soft: #252848; --ok: #4ade80; --err: #f87171;
+    --row-hover: #22242d; color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC", sans-serif;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 24px 16px 110px; }
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+  header img { width: 44px; height: 44px; }
+  h1 { font-size: 22px; margin: 0; }
+  header p { margin: 0; color: var(--muted); font-size: 13px; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 18px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 12px; }
+
+  .drop {
+    border: 2px dashed var(--border); border-radius: 12px; padding: 26px 16px;
+    text-align: center; cursor: pointer; transition: .15s;
+  }
+  .drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+  .drop strong { display: block; font-size: 16px; margin-bottom: 4px; }
+  .drop span { color: var(--muted); font-size: 13px; }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+  .toolbar .count { margin-left: auto; color: var(--muted); font-size: 13px; }
+
+  button, .btn {
+    font: inherit; font-size: 14px; border: 1px solid var(--border); background: var(--card);
+    color: var(--text); padding: 7px 14px; border-radius: 9px; cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff;
+    border: none; padding: 10px 26px; font-weight: 600; font-size: 15px;
+  }
+
+  .list { margin-top: 14px; max-height: 360px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+  .list:empty { display: none; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { position: sticky; top: 0; background: var(--card); color: var(--muted); font-weight: 500; z-index: 1; }
+  tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--row-hover); }
+  td.name { max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
+  td.thumb { width: 52px; }
+  .thumb img, .thumb .ph {
+    width: 40px; height: 40px; object-fit: cover; border-radius: 6px; display: block;
+    background: var(--accent-soft);
+  }
+  .thumb .ph { display: grid; place-items: center; font-size: 10px; color: var(--muted); text-transform: uppercase; }
+  .ok { color: var(--ok); } .err { color: var(--err); } .muted { color: var(--muted); }
+  td .x { border: none; background: none; color: var(--muted); padding: 2px 6px; font-size: 16px; }
+  td .x:hover { color: var(--err); }
+
+  .grid { display: grid; grid-template-columns: 130px 1fr; gap: 12px 14px; align-items: center; }
+  .grid label.k { color: var(--muted); font-size: 14px; }
+  input[type=number], select {
+    font: inherit; font-size: 14px; padding: 6px 10px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--card); color: var(--text);
+  }
+  input[type=number] { width: 120px; }
+  .hint { color: var(--muted); font-size: 13px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+  .radio { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+  .folder-name {
+    font-size: 13px; padding: 4px 10px; border-radius: 6px; background: var(--accent-soft);
+    max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  input[type=range] { width: 160px; accent-color: var(--accent); }
+  input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
+
+  .bar {
+    position: fixed; left: 0; right: 0; bottom: 0; background: var(--card);
+    border-top: 1px solid var(--border); padding: 12px 16px;
+  }
+  .bar .inner { max-width: 920px; margin: 0 auto; display: flex; gap: 14px; align-items: center; }
+  .progress { flex: 1; min-width: 0; }
+  .track { height: 8px; background: var(--accent-soft); border-radius: 99px; overflow: hidden; }
+  .fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .2s; }
+  #status { font-size: 13px; color: var(--muted); margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .overlay {
+    position: fixed; inset: 0; background: color-mix(in srgb, var(--accent) 18%, transparent);
+    border: 4px dashed var(--accent); display: none; place-items: center; z-index: 10;
+    font-size: 22px; font-weight: 600; color: var(--accent); pointer-events: none;
+  }
+  .overlay.show { display: grid; }
+
+  @media (max-width: 600px) {
+    .grid { grid-template-columns: 1fr; gap: 4px; }
+    .grid label.k { margin-top: 8px; }
+    td.name { max-width: 140px; }
+    .col-orig { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="overlay" id="overlay">放開以加入圖片</div>
+
+<div class="wrap">
+  <header>
+    <img id="logo" alt="">
+    <div>
+      <h1>圖片縮放工具</h1>
+      <p>單張或批量縮放・輸入寬度自動等比例・圖片只在你的電腦上處理，不會上傳</p>
+    </div>
+  </header>
+
+  <section class="card">
+    <h2>圖片</h2>
+    <div class="drop" id="drop">
+      <strong>拖曳圖片或資料夾到這裡</strong>
+      <span>或點這裡選擇檔案・支援 JPG、PNG、WEBP、GIF、BMP、AVIF、ICO、TIFF、HEIC</span>
+    </div>
+    <div class="toolbar">
+      <button id="btnFiles">加入圖片…</button>
+      <button id="btnFolder">加入資料夾…</button>
+      <button id="btnClear">清空</button>
+      <span class="count" id="count">0 張</span>
+    </div>
+    <input type="file" id="inFiles" multiple accept="image/*,.heic,.heif,.tif,.tiff,.ico,.avif,.bmp" hidden>
+    <input type="file" id="inFolder" webkitdirectory hidden>
+    <div class="list" id="list"></div>
+  </section>
+
+  <section class="card">
+    <h2>設定</h2>
+    <div class="grid">
+      <label class="k" for="width">寬度 (px)</label>
+      <div class="row">
+        <input type="number" id="width" min="1" max="20000" value="1080">
+        <span class="hint">高度依原圖比例自動計算</span>
+      </div>
+
+      <label class="k" for="format">輸出格式</label>
+      <div class="row">
+        <select id="format">
+          <option value="keep">保持原格式</option>
+          <option value="jpeg">JPG</option>
+          <option value="png">PNG</option>
+          <option value="webp">WEBP</option>
+        </select>
+        <span class="hint" id="formatHint"></span>
+      </div>
+
+      <label class="k" for="quality">品質 (JPG/WEBP)</label>
+      <div class="row">
+        <input type="range" id="quality" min="1" max="100" value="90">
+        <span id="qualityVal">90</span>
+      </div>
+
+      <label class="k">輸出位置</label>
+      <div>
+        <div class="row">
+          <label class="radio"><input type="radio" name="out" value="download" checked> 下載資料夾</label>
+          <label class="radio"><input type="radio" name="out" value="folder" id="outFolderRadio"> 自選資料夾</label>
+          <button id="btnPick">選擇資料夾…</button>
+          <span class="folder-name" id="folderName" hidden></span>
+        </div>
+        <div class="hint" id="outHint" style="margin-top:6px"></div>
+      </div>
+
+      <label class="k"></label>
+      <label class="radio">
+        <input type="checkbox" id="subdir" checked>
+        <span id="subdirText"></span>
+      </label>
+    </div>
+  </section>
+</div>
+
+<div class="bar">
+  <div class="inner">
+    <div class="progress">
+      <div class="track"><div class="fill" id="fill"></div></div>
+      <div id="status">加入圖片後按「開始轉換」</div>
+    </div>
+    <button class="primary" id="btnStart">開始轉換</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  document.getElementById("logo").src = document.querySelector("link[rel=icon]").href;
+
+  // ---------- 常數與工具 ----------
+  const IMAGE_EXTS = new Set(["jpg","jpeg","jfif","pjpeg","png","apng","gif","webp","bmp","dib","avif","ico","cur","svg","tif","tiff","heic","heif"]);
+  const SPECIAL = { heic: "heic", heif: "heic", tif: "tiff", tiff: "tiff" };
+  const LIBS = {
+    pica:    "https://cdn.jsdelivr.net/npm/pica@9.0.1/dist/pica.min.js",
+    jszip:   "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
+    heic2any:"https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js",
+    pako:    "https://cdn.jsdelivr.net/npm/pako@1.0.11/dist/pako.min.js",
+    utif:    "https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js",
+  };
+  const canPickFolder = "showDirectoryPicker" in window;
+
+  const extOf = (name) => (name.includes(".") ? name.split(".").pop().toLowerCase() : "");
+  const baseOf = (name) => (name.includes(".") ? name.slice(0, name.lastIndexOf(".")) : name);
+  const pad = (n) => String(n).padStart(2, "0");
+  const stamp = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
+  };
+  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+  const isImage = (f) => f.type.startsWith("image/") || IMAGE_EXTS.has(extOf(f.name));
+
+  const loaded = {};
+  function loadScript(key) {
+    return loaded[key] ||= new Promise((res, rej) => {
+      const s = document.createElement("script");
+      s.src = LIBS[key]; s.onload = res;
+      s.onerror = () => { delete loaded[key]; rej(new Error("無法載入元件（需要網路連線）")); };
+      document.head.appendChild(s);
+    });
+  }
+
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem("resizer." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem("resizer." + k, JSON.stringify(v)); } catch {} },
+  };
+
+  // 資料夾授權存在 IndexedDB，下次開啟只需按一次「允許」
+  const idb = {
+    open() {
+      return new Promise((res, rej) => {
+        const r = indexedDB.open("image-resizer", 1);
+        r.onupgradeneeded = () => r.result.createObjectStore("kv");
+        r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+      });
+    },
+    async get(k) {
+      try { const db = await this.open();
+        return await new Promise((res) => { const q = db.transaction("kv").objectStore("kv").get(k); q.onsuccess = () => res(q.result); q.onerror = () => res(undefined); });
+      } catch { return undefined; }
+    },
+    async set(k, v) {
+      try { const db = await this.open();
+        await new Promise((res) => { const t = db.transaction("kv", "readwrite"); t.objectStore("kv").put(v, k); t.oncomplete = res; t.onerror = res; });
+      } catch {}
+    },
+  };
+
+  // ---------- 狀態 ----------
+  let items = [];          // {id, file, name, ext, url, w, h, status, msg}
+  let nextId = 1;
+  let dirHandle = null;
+  let busy = false;
+
+  const el = {
+    list: $("list"), count: $("count"), width: $("width"), format: $("format"),
+    quality: $("quality"), qualityVal: $("qualityVal"), subdir: $("subdir"), subdirText: $("subdirText"),
+    folderName: $("folderName"), outHint: $("outHint"), btnPick: $("btnPick"),
+    fill: $("fill"), status: $("status"), btnStart: $("btnStart"), formatHint: $("formatHint"),
+  };
+
+  // ---------- 加入檔案 ----------
+  function addFiles(files) {
+    const keys = new Set(items.map((it) => it.key));
+    let skipped = 0;
+    for (const f of files) {
+      if (!isImage(f)) { skipped++; continue; }
+      const key = `${f.webkitRelativePath || f.name}|${f.size}|${f.lastModified}`;
+      if (keys.has(key)) continue;
+      keys.add(key);
+      const ext = extOf(f.name);
+      const it = { id: nextId++, key, file: f, name: f.name, ext, url: null, w: 0, h: 0, status: "wait", msg: "" };
+      if (!SPECIAL[ext]) it.url = URL.createObjectURL(f);
+      items.push(it);
+      probe(it);
+    }
+    render();
+    if (skipped) toast(`已略過 ${skipped} 個非圖片檔案`);
+  }
+
+  function probe(it) {
+    if (!it.url) return; // HEIC / TIFF 於轉換時才解碼
+    const img = new Image();
+    img.onload = () => { it.w = img.naturalWidth; it.h = img.naturalHeight; updateRow(it); };
+    img.onerror = () => { it.status = "err"; it.msg = "無法讀取"; updateRow(it); };
+    img.src = it.url;
+  }
+
+  async function collectDrop(dt) {
+    const entries = [...dt.items].map((i) => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+    if (!entries.length) return [...dt.files];
+    const out = [];
+    const walk = async (entry) => {
+      if (entry.isFile) {
+        out.push(await new Promise((res, rej) => entry.file(res, rej)));
+      } else if (entry.isDirectory) {
+        const reader = entry.createReader();
+        let batch;
+        do {
+          batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+          for (const e of batch) await walk(e);
+        } while (batch.length);
+      }
+    };
+    for (const e of entries) await walk(e);
+    return out;
+  }
+
+  // ---------- 清單顯示 ----------
+  function targetW() {
+    const w = parseInt(el.width.value, 10);
+    return w > 0 ? w : 0;
+  }
+  function newSize(it, W) {
+    if (!it.w || !W) return null;
+    return [W, Math.max(1, Math.round(it.h * W / it.w))];
+  }
+  function statusHtml(it) {
+    switch (it.status) {
+      case "run": return `<span class="muted">處理中…</span>`;
+      case "ok":  return `<span class="ok">✓ 完成</span>`;
+      case "err": return `<span class="err" title="${esc(it.msg)}">✗ ${esc(it.msg)}</span>`;
+      default:    return `<span class="muted">待處理</span>`;
+    }
+  }
+  function rowCells(it) {
+    const W = targetW();
+    const ns = newSize(it, W);
+    const orig = it.w ? `${it.w}×${it.h}` : (SPECIAL[it.ext] ? "轉換時讀取" : "—");
+    return {
+      orig, neu: ns ? `${ns[0]}×${ns[1]}` : (W && SPECIAL[it.ext] && !it.w ? `${W}×自動` : "—"),
+      status: statusHtml(it),
+    };
+  }
+  function render() {
+    el.count.textContent = `${items.length} 張`;
+    if (!items.length) { el.list.innerHTML = ""; return; }
+    const rows = items.map((it) => {
+      const c = rowCells(it);
+      const thumb = it.url
+        ? `<img src="${it.url}" loading="lazy" decoding="async" alt="">`
+        : `<div class="ph">${esc(it.ext)}</div>`;
+      return `<tr data-id="${it.id}">
+        <td class="thumb">${thumb}</td>
+        <td class="name" title="${esc(it.name)}">${esc(it.name)}</td>
+        <td class="col-orig" data-c="orig">${c.orig}</td>
+        <td data-c="neu">${c.neu}</td>
+        <td data-c="status">${c.status}</td>
+        <td><button class="x" data-del="${it.id}" title="移除">×</button></td>
+      </tr>`;
+    }).join("");
+    el.list.innerHTML = `<table><thead><tr><th></th><th>檔名</th><th class="col-orig">原尺寸</th><th>輸出尺寸</th><th>狀態</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+  function updateRow(it) {
+    const tr = el.list.querySelector(`tr[data-id="${it.id}"]`);
+    if (!tr) return;
+    const c = rowCells(it);
+    tr.querySelector('[data-c="orig"]').textContent = c.orig;
+    tr.querySelector('[data-c="neu"]').textContent = c.neu;
+    tr.querySelector('[data-c="status"]').innerHTML = c.status;
+  }
+  function refreshSizes() { items.forEach(updateRow); }
+
+  function removeItem(id) {
+    const i = items.findIndex((it) => it.id === id);
+    if (i < 0) return;
+    if (items[i].url) URL.revokeObjectURL(items[i].url);
+    items.splice(i, 1);
+    render();
+  }
+  function clearAll() {
+    items.forEach((it) => it.url && URL.revokeObjectURL(it.url));
+    items = [];
+    render();
+    setProgress(0, "加入圖片後按「開始轉換」");
+  }
+
+  // ---------- 解碼 / 縮放 / 編碼 ----------
+  async function decode(it) {
+    const kind = SPECIAL[it.ext];
+    if (kind === "heic") {
+      await loadScript("heic2any");
+      let blob = await heic2any({ blob: it.file, toType: "image/png" });
+      if (Array.isArray(blob)) blob = blob[0];
+      return await createImageBitmap(blob);
+    }
+    if (kind === "tiff") {
+      await loadScript("pako").catch(() => {});
+      await loadScript("utif");
+      const buf = await it.file.arrayBuffer();
+      const ifds = UTIF.decode(buf);
+      const page = ifds.find((p) => p.width && p.height) || ifds[0];
+      UTIF.decodeImage(buf, page, ifds);
+      const rgba = UTIF.toRGBA8(page);
+      const c = document.createElement("canvas");
+      c.width = page.width; c.height = page.height;
+      c.getContext("2d").putImageData(new ImageData(new Uint8ClampedArray(rgba.buffer, 0, page.width * page.height * 4), page.width, page.height), 0, 0);
+      return c;
+    }
+    try {
+      return await createImageBitmap(it.file, { imageOrientation: "from-image" });
+    } catch {
+      // 部分格式（例如 ICO、SVG）改用 <img> 解碼
+      const img = new Image();
+      img.src = it.url || URL.createObjectURL(it.file);
+      await img.decode();
+      const w = img.naturalWidth || 512, h = img.naturalHeight || 512;
+      const c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      c.getContext("2d").drawImage(img, 0, 0, w, h);
+      return c;
+    }
+  }
+
+  let picaInst = null, picaFailed = false;
+  async function getPica() {
+    if (picaFailed) return null;
+    if (picaInst) return picaInst;
+    try {
+      await loadScript("pica");
+      picaInst = window.pica({ features: ["js", "wasm", "ww"] });
+      return picaInst;
+    } catch { picaFailed = true; return null; }
+  }
+
+  async function resize(src, W, H) {
+    const dest = document.createElement("canvas");
+    dest.width = W; dest.height = H;
+    const p = await getPica();
+    if (p) {
+      try {
+        await p.resize(src, dest, { filter: "lanczos3", unsharpAmount: 0 });
+        return dest;
+      } catch (e) {
+        console.warn("pica 失敗，改用內建縮放", e);
+        picaFailed = true;
+      }
+    }
+    // 備用：逐次減半縮小，避免一次縮太多造成鋸齒
+    let cur = src, cw = src.width, ch = src.height;
+    while (cw / 2 > W && ch / 2 > H) {
+      const t = document.createElement("canvas");
+      t.width = Math.round(cw / 2); t.height = Math.round(ch / 2);
+      const tc = t.getContext("2d");
+      tc.imageSmoothingQuality = "high";
+      tc.drawImage(cur, 0, 0, t.width, t.height);
+      cur = t; cw = t.width; ch = t.height;
+    }
+    const ctx = dest.getContext("2d");
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(cur, 0, 0, W, H);
+    return dest;
+  }
+
+  const MIME = { jpeg: "image/jpeg", png: "image/png", webp: "image/webp" };
+  const EXT_OF_MIME = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+
+  function pickOutput(it) {
+    const choice = el.format.value;
+    if (choice !== "keep") return { mime: MIME[choice], ext: EXT_OF_MIME[MIME[choice]] };
+    if (["jpg", "jpeg", "jfif"].includes(it.ext)) return { mime: "image/jpeg", ext: it.ext };
+    if (it.ext === "png") return { mime: "image/png", ext: "png" };
+    if (it.ext === "webp") return { mime: "image/webp", ext: "webp" };
+    return { mime: "image/png", ext: "png" }; // 瀏覽器無法輸出的格式改存 PNG
+  }
+
+  async function encode(canvas, mime, quality) {
+    let c = canvas;
+    if (mime === "image/jpeg") { // JPG 不支援透明，鋪白底
+      c = document.createElement("canvas");
+      c.width = canvas.width; c.height = canvas.height;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(canvas, 0, 0);
+    }
+    const blob = await new Promise((res) => c.toBlob(res, mime, quality / 100));
+    if (!blob) throw new Error("編碼失敗");
+    return blob;
+  }
+
+  // ---------- 輸出目的地 ----------
+  async function exists(dir, name, kind) {
+    try { await (kind === "dir" ? dir.getDirectoryHandle(name) : dir.getFileHandle(name)); return true; }
+    catch { return false; }
+  }
+  function withSuffix(name, i) {
+    const dot = name.lastIndexOf(".");
+    return dot > 0 ? `${name.slice(0, dot)} (${i})${name.slice(dot)}` : `${name} (${i})`;
+  }
+  async function uniqueName(name, used, dir, kind) {
+    let n = name, i = 1;
+    while (used.has(n.toLowerCase()) || (dir && await exists(dir, n, kind))) n = withSuffix(name, i++);
+    used.add(n.toLowerCase());
+    return n;
+  }
+  function downloadBlob(blob, name) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  }
+
+  async function makeWriter(mode, useSub) {
+    const used = new Set();
+    const st = stamp();
+
+    if (mode === "folder") {
+      let dir = dirHandle;
+      let label = dir.name;
+      if (useSub) {
+        const sub = await uniqueName(st, new Set(), dir, "dir");
+        dir = await dir.getDirectoryHandle(sub, { create: true });
+        label += "/" + sub;
+      }
+      return {
+        label,
+        async write(name, blob) {
+          const n = await uniqueName(name, used, dir, "file");
+          const fh = await dir.getFileHandle(n, { create: true });
+          const w = await fh.createWritable();
+          await w.write(blob); await w.close();
+        },
+        async finish() {},
+      };
+    }
+
+    if (useSub) {
+      await loadScript("jszip");
+      const zip = new JSZip();
+      const folder = zip.folder(st);
+      return {
+        label: `下載資料夾/${st}.zip`,
+        async write(name, blob) { folder.file(await uniqueName(name, used), blob); },
+        async finish(count) {
+          if (!count) return;
+          setProgress(100, "正在打包 zip…");
+          const out = await zip.generateAsync({ type: "blob" });
+          downloadBlob(out, `${st}.zip`);
+        },
+      };
+    }
+
+    return {
+      label: "下載資料夾",
+      async write(name, blob) {
+        downloadBlob(blob, await uniqueName(name, used));
+        await new Promise((r) => setTimeout(r, 250)); // 避免瀏覽器擋掉連續下載
+      },
+      async finish() {},
+    };
+  }
+
+  async function ensurePermission() {
+    if (!dirHandle) return false;
+    const opts = { mode: "readwrite" };
+    if ((await dirHandle.queryPermission(opts)) === "granted") return true;
+    return (await dirHandle.requestPermission(opts)) === "granted";
+  }
+
+  async function pickFolder() {
+    try {
+      const opts = { mode: "readwrite", startIn: "downloads" };
+      if (dirHandle) opts.startIn = dirHandle;
+      dirHandle = await window.showDirectoryPicker(opts);
+      await idb.set("dir", dirHandle);
+      document.querySelector('input[name=out][value=folder]').checked = true;
+      updateOutUI();
+    } catch (e) {
+      if (e.name !== "AbortError") alert("無法選擇資料夾：" + e.message);
+    }
+  }
+
+  // ---------- 主流程 ----------
+  async function start() {
+    if (busy) return;
+    if (!items.length) { alert("請先加入圖片"); return; }
+    const W = targetW();
+    if (!W) { alert("請輸入正確的寬度（正整數）"); el.width.focus(); return; }
+    const mode = document.querySelector("input[name=out]:checked").value;
+    if (mode === "folder") {
+      if (!dirHandle) { await pickFolder(); if (!dirHandle) return; }
+      if (!(await ensurePermission())) { alert("沒有取得資料夾的寫入權限"); return; }
+    }
+
+    busy = true; el.btnStart.disabled = true;
+    const quality = parseInt(el.quality.value, 10) || 90;
+    let writer;
+    try {
+      writer = await makeWriter(mode, el.subdir.checked);
+    } catch (e) {
+      alert("無法建立輸出：" + e.message);
+      busy = false; el.btnStart.disabled = false; return;
+    }
+
+    const list = [...items];
+    list.forEach((it) => { it.status = "wait"; it.msg = ""; updateRow(it); });
+    let ok = 0, fail = 0;
+    for (let i = 0; i < list.length; i++) {
+      const it = list[i];
+      it.status = "run"; updateRow(it);
+      setProgress(i / list.length * 100, `處理中 ${i + 1}/${list.length}：${it.name}`);
+      try {
+        const src = await decode(it);
+        it.w = src.width; it.h = src.height;
+        const [, H] = newSize(it, W);
+        const canvas = await resize(src, W, H);
+        if (src.close) src.close();
+        const out = pickOutput(it);
+        const blob = await encode(canvas, out.mime, quality);
+        const ext = blob.type === out.mime ? out.ext : (EXT_OF_MIME[blob.type] || "png");
+        await writer.write(`${baseOf(it.name)}_${W}x${H}.${ext}`, blob);
+        it.status = "ok"; ok++;
+      } catch (e) {
+        console.error(it.name, e);
+        it.status = "err"; it.msg = e.message || "處理失敗"; fail++;
+      }
+      updateRow(it);
+    }
+
+    try { await writer.finish(ok); }
+    catch (e) { alert("輸出失敗：" + e.message); }
+
+    setProgress(100, `完成：成功 ${ok} 張${fail ? `，失敗 ${fail} 張` : ""} → ${writer.label}`);
+    busy = false; el.btnStart.disabled = false;
+  }
+
+  function setProgress(pct, text) {
+    el.fill.style.width = pct + "%";
+    el.status.textContent = text;
+  }
+
+  let toastTimer;
+  function toast(msg) {
+    el.status.textContent = msg;
+    clearTimeout(toastTimer);
+  }
+
+  // ---------- 設定 UI ----------
+  function updateOutUI() {
+    const mode = document.querySelector("input[name=out]:checked").value;
+    el.folderName.hidden = !dirHandle;
+    if (dirHandle) el.folderName.textContent = "📁 " + dirHandle.name;
+    el.btnPick.hidden = mode !== "folder";
+    el.folderName.hidden = mode !== "folder" || !dirHandle;
+    const ex = stamp();
+    if (mode === "folder") {
+      el.subdirText.textContent = `在輸出資料夾裡建立日期時間子資料夾（例：${ex}）`;
+      el.outHint.textContent = dirHandle ? "" : "請按「選擇資料夾…」挑選輸出位置（預設開啟在「下載」）";
+    } else {
+      el.subdirText.textContent = `打包成日期時間命名的 zip（例：${ex}.zip，解壓即為同名資料夾）`;
+      el.outHint.textContent = "存到瀏覽器的預設下載位置（通常是「下載」資料夾）";
+    }
+    store.set("out", mode);
+  }
+
+  function updateFormatHint() {
+    el.formatHint.textContent = el.format.value === "keep"
+      ? "GIF、BMP、TIFF、HEIC 等瀏覽器無法輸出的格式會存成 PNG" : "";
+  }
+
+  // ---------- 事件 ----------
+  $("btnFiles").onclick = () => $("inFiles").click();
+  $("btnFolder").onclick = () => $("inFolder").click();
+  $("drop").onclick = () => $("inFiles").click();
+  $("btnClear").onclick = clearAll;
+  $("inFiles").onchange = (e) => { addFiles([...e.target.files]); e.target.value = ""; };
+  $("inFolder").onchange = (e) => { addFiles([...e.target.files]); e.target.value = ""; };
+  el.list.onclick = (e) => { const id = e.target.dataset.del; if (id) removeItem(+id); };
+  el.btnPick.onclick = pickFolder;
+  el.btnStart.onclick = start;
+
+  el.width.oninput = () => { refreshSizes(); store.set("width", el.width.value); };
+  el.format.onchange = () => { updateFormatHint(); store.set("format", el.format.value); };
+  el.quality.oninput = () => { el.qualityVal.textContent = el.quality.value; store.set("quality", el.quality.value); };
+  el.subdir.onchange = () => store.set("subdir", el.subdir.checked);
+  document.querySelectorAll("input[name=out]").forEach((r) => r.onchange = updateOutUI);
+
+  // 整個視窗都可以拖放
+  const overlay = $("overlay"), drop = $("drop");
+  let dragDepth = 0;
+  const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes("Files");
+  window.addEventListener("dragenter", (e) => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth++; overlay.classList.add("show"); drop.classList.add("over"); });
+  window.addEventListener("dragleave", (e) => { if (!hasFiles(e)) return; if (--dragDepth <= 0) { dragDepth = 0; overlay.classList.remove("show"); drop.classList.remove("over"); } });
+  window.addEventListener("dragover", (e) => { if (hasFiles(e)) e.preventDefault(); });
+  window.addEventListener("drop", async (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth = 0; overlay.classList.remove("show"); drop.classList.remove("over");
+    setProgress(0, "讀取中…");
+    addFiles(await collectDrop(e.dataTransfer));
+    if (items.length) setProgress(0, `已加入，共 ${items.length} 張`);
+  });
+
+  // 也可以直接 Ctrl+V 貼上截圖
+  window.addEventListener("paste", (e) => {
+    const files = [...(e.clipboardData?.files || [])];
+    if (files.length) addFiles(files.map((f, i) => f.name && f.name !== "image.png" ? f
+      : new File([f], `貼上_${stamp()}${files.length > 1 ? "_" + (i + 1) : ""}.png`, { type: f.type })));
+  });
+
+  // ---------- 初始化 ----------
+  el.width.value = store.get("width", "1080");
+  el.format.value = store.get("format", "keep");
+  el.quality.value = store.get("quality", "90");
+  el.qualityVal.textContent = el.quality.value;
+  el.subdir.checked = store.get("subdir", true);
+
+  if (!canPickFolder) {
+    const r = $("outFolderRadio");
+    r.disabled = true;
+    r.parentElement.title = "此瀏覽器不支援，請使用 Chrome 或 Edge";
+    r.parentElement.append(Object.assign(document.createElement("span"), { className: "hint", textContent: "（需 Chrome / Edge）" }));
+  } else if (store.get("out", "download") === "folder") {
+    document.querySelector('input[name=out][value=folder]').checked = true;
+  }
+  updateFormatHint();
+  updateOutUI();
+  setInterval(() => { if (!busy) updateOutUI(); }, 1000); // 讓範例時間跟著跑
+
+  if (canPickFolder) idb.get("dir").then((h) => { if (h) { dirHandle = h; updateOutUI(); } });
+  getPica(); // 預先載入高畫質縮放元件
+})();
+</script>
+</body>
+</html>
