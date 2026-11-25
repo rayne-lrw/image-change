@@ -2,6 +2,9 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
+<!-- 只允許從 jsDelivr / unpkg 載入外部程式，其餘一律封鎖。
+     'unsafe-eval' 是 HEIC 解碼器（libheif）內部需要的，拿掉會讓 HEIC 無法轉換 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com; worker-src blob: data:; connect-src blob: data:; img-src blob: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>圖片縮放工具</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%234f8cff'/%3E%3Cstop offset='1' stop-color='%237c4dff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='2' y='2' width='60' height='60' rx='14' fill='url(%23g)'/%3E%3Crect x='12' y='16' width='36' height='31' rx='4' fill='%23fff'/%3E%3Crect x='15' y='19' width='30' height='25' rx='2' fill='%23bee1ff'/%3E%3Cpath d='M15 44l10-15 10 15z' fill='%233caa6e'/%3E%3Cpath d='M25 44l10-10 10 7v3z' fill='%23288758'/%3E%3Ccircle cx='38' cy='24' r='3.5' fill='%23ffc83c'/%3E%3Ccircle cx='48' cy='46' r='10' fill='%23ff8c32' stroke='%23fff' stroke-width='2'/%3E%3Cpath d='M43 51l10-10M53 41h-5M53 41v5M43 51h5M43 51v-5' stroke='%23fff' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E">
@@ -235,15 +238,24 @@
   // ---------- 常數與工具 ----------
   const IMAGE_EXTS = new Set(["jpg","jpeg","jfif","pjpeg","png","apng","gif","webp","bmp","dib","avif","ico","cur","svg","tif","tiff","heic","heif"]);
   const SPECIAL = { heic: "heic", heif: "heic", tif: "tiff", tiff: "tiff" };
+  // 外部元件：固定版本 + SRI 雜湊，CDN 上的檔案若被竄改，瀏覽器會拒絕執行。
+  // 每個元件都有 jsDelivr 與 unpkg 兩個來源（內容都是同一份 npm 套件檔案）。
+  // 升級版本時必須一併更新 sri（npm pack 後 openssl dgst -sha384 -binary 檔案 | base64）。
+  const npm = (path) => [`https://cdn.jsdelivr.net/npm/${path}`, `https://unpkg.com/${path}`];
   const LIBS = {
-    pica:    "https://cdn.jsdelivr.net/npm/pica@9.0.1/dist/pica.min.js",
-    jszip:   "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
+    pica:     { src: npm("pica@9.0.1/dist/pica.min.js"),
+                sri: "sha384-erKD4aAW95PJjutWX+eFrsIh9Kl6k9mLJ89rDrWhF2/EvCdxqe2aR5tDaI4SIFl/" },
+    jszip:    { src: npm("jszip@3.10.1/dist/jszip.min.js"),
+                sri: "sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" },
     // heic-to 內含較新的 libheif，可解碼 iPhone 新機型的 HEIC；heic2any 為舊版備用
-    heicto:  ["https://cdn.jsdelivr.net/npm/heic-to@1.5.2/dist/iife/heic-to.js",
-              "https://unpkg.com/heic-to@1.5.2/dist/iife/heic-to.js"],
-    heic2any:"https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js",
-    pako:    "https://cdn.jsdelivr.net/npm/pako@1.0.11/dist/pako.min.js",
-    utif:    "https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js",
+    heicto:   { src: npm("heic-to@1.5.2/dist/iife/heic-to.js"),
+                sri: "sha384-cVm8gaWQ5+URpoh6ACKXpm8TuyoHkfIDDBkxvDoUdIZ18w8nV5en0lVQvWMwO/6S" },
+    heic2any: { src: npm("heic2any@0.0.4/dist/heic2any.min.js"),
+                sri: "sha384-OTofQ0MEeiSgh62havBcemCIK0gqj809wX6UA0uPISNMRnR6NZyCdGzX3SbLrgwL" },
+    pako:     { src: npm("pako@1.0.11/dist/pako.min.js"),
+                sri: "sha384-4NCF4sE5VX/W8Juvr+V9At6hCk146OuwgRSD6r857Tlar3RMK6IkyQ7W0xnNCZnG" },
+    utif:     { src: npm("utif@3.1.0/UTIF.js"),
+                sri: "sha384-RyBmXHdfZ/Uon+ud+/AqSyWpUWnKYt2tkRG/P4gWoRUGDU+qIAV3tGBPNlYTBZEF" },
   };
   const canPickFolder = "showDirectoryPicker" in window;
 
@@ -259,9 +271,10 @@
 
   const loaded = {};
   function loadScript(key) {
-    const urls = [].concat(LIBS[key]);
+    const { src: urls, sri } = LIBS[key];
     const tryLoad = (i) => new Promise((res, rej) => {
       const s = document.createElement("script");
+      s.integrity = sri; s.crossOrigin = "anonymous";
       s.src = urls[i]; s.onload = res;
       s.onerror = () => { s.remove(); rej(); };
       document.head.appendChild(s);
@@ -796,7 +809,5 @@
   getPica(); // 預先載入高畫質縮放元件
 })();
 </script>
-<script data-goatcounter="https://rayne-lrw.goatcounter.com/count"
-        async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>
